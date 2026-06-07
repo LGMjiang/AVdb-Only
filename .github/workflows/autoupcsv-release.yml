@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "0 */6 * * *"
   workflow_dispatch:
+    inputs:
+      zip_file_names:
+        description: Optional comma-separated zip file names override
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -14,8 +19,8 @@ concurrency:
 
 env:
   BASE_URL: https://webdav.peifeng.li/docker/AutoUpCsv/
-  # Optional override. Auto-discovery supports URL-encoded names like %E8%89%B2%E8%8A%B1%E5%A0%82_312896_2026-06-07.zip.
-  ZIP_FILE_NAMES: ${{ vars.AUTOUPCSV_ZIP_FILE_NAMES }}
+  # Optional override from manual trigger input. Supports URL-encoded names.
+  ZIP_FILE_NAMES: ${{ github.event.inputs.zip_file_names }}
 
 jobs:
   check-and-release:
@@ -62,7 +67,7 @@ jobs:
 
           if [[ "${#names[@]}" -ne 2 ]]; then
             echo "Expected exactly 2 zip files, found ${#names[@]}: ${names[*]}" >&2
-            echo "Set repository variable AUTOUPCSV_ZIP_FILE_NAMES to pin file names." >&2
+            echo "Use workflow_dispatch input zip_file_names to pin file names." >&2
             exit 1
           fi
 
@@ -143,6 +148,29 @@ jobs:
             ${{ steps.scan.outputs.asset_glob }}
           fail_on_unmatched_files: true
 
+      - name: Cleanup old AutoUpCsv releases (keep latest 5)
+        id: cleanup
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t tags_to_delete < <(
+            gh release list --limit 100 --json tagName,createdAt \
+              --jq 'map(select(.tagName | startswith("autoupcsv-"))) | sort_by(.createdAt) | reverse | .[5:] | .[].tagName'
+          )
+
+          deleted=0
+          for tag in "${tags_to_delete[@]}"; do
+            [[ -z "$tag" ]] && continue
+            gh release delete "$tag" --yes --cleanup-tag
+            deleted=$((deleted + 1))
+          done
+
+          echo "deleted_count=$deleted" >> "$GITHUB_OUTPUT"
+          echo "Deleted old releases: $deleted"
+
       - name: Summary
         shell: bash
         run: |
@@ -152,6 +180,7 @@ jobs:
             echo "- Tag: ${{ steps.scan.outputs.tag }}"
             echo "- Name fingerprint: ${{ steps.scan.outputs.names_fingerprint }}"
             echo "- Created release: ${{ steps.dedupe.outputs.should_release }}"
+            echo "- Deleted old releases: ${{ steps.cleanup.outputs.deleted_count }}"
             echo
             echo "### File names"
             echo "${{ steps.scan.outputs.zip_names }}"
