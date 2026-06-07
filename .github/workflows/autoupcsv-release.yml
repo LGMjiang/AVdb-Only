@@ -137,6 +137,7 @@ jobs:
         with:
           tag_name: ${{ steps.scan.outputs.tag }}
           name: ${{ steps.naming.outputs.release_name }}
+          make_latest: true
           body: |
             Auto-generated release from AVdb.
             Name fingerprint: ${{ steps.scan.outputs.names_fingerprint }}
