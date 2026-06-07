@@ -122,12 +122,21 @@ jobs:
             curl -fsSL --user "$WEBDAV_USERNAME:$WEBDAV_PASSWORD" "${BASE_URL}${name}" -o "downloads/${name}"
           done
 
+      - name: Build release display name
+        id: naming
+        shell: bash
+        run: |
+          set -euo pipefail
+          short_tag="${{ steps.scan.outputs.tag }}"
+          short_tag="${short_tag#autoupcsv-}"
+          echo "release_name=AutoUpCsv-${short_tag}" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub release and upload assets
         if: steps.dedupe.outputs.should_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.scan.outputs.tag }}
-          name: AutoUpCsv ${{ steps.scan.outputs.tag }}
+          name: ${{ steps.naming.outputs.release_name }}
           body: |
             Auto-generated release from AVdb.
             Name fingerprint: ${{ steps.scan.outputs.names_fingerprint }}
