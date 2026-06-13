@@ -141,10 +141,10 @@ jobs:
           name: ${{ steps.naming.outputs.release_name }}
           make_latest: true
           body: |
-            Auto-generated release from AVdb.
-            Name fingerprint: ${{ steps.scan.outputs.names_fingerprint }}
+            AVdb 自动上传生成的最新资源库版本.
+            指纹验证: ${{ steps.scan.outputs.names_fingerprint }}
 
-            File names:
+            文件列表:
             ${{ steps.scan.outputs.zip_names }}
           files: |
             ${{ steps.scan.outputs.asset_glob }}
