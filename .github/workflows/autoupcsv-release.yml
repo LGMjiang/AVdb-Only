@@ -150,7 +150,30 @@ jobs:
             ${{ steps.scan.outputs.asset_glob }}
           fail_on_unmatched_files: true
 
-      - name: Force latest on newly created release
+      - name: Cleanup old AutoUpCsv releases (keep latest 1)
+        id: cleanup
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t tags_to_delete < <(
+            gh release list --limit 100 --json tagName,createdAt \
+              --jq 'map(select(.tagName | startswith("autoupcsv-"))) | sort_by(.createdAt) | reverse | .[1:] | .[].tagName'
+          )
+
+          deleted=0
+          for tag in "${tags_to_delete[@]}"; do
+            [[ -z "$tag" ]] && continue
+            gh release delete "$tag" --yes --cleanup-tag
+            deleted=$((deleted + 1))
+          done
+
+          echo "deleted_count=$deleted" >> "$GITHUB_OUTPUT"
+          echo "Deleted old releases: $deleted"
+
+      - name: Force latest on current AutoUpCsv release
         if: steps.dedupe.outputs.should_release == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -192,29 +215,6 @@ jobs:
 
           echo "Failed to verify latest points to $TAG after retries" >&2
           exit 1
-
-      - name: Cleanup old AutoUpCsv releases (keep latest 1)
-        id: cleanup
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          mapfile -t tags_to_delete < <(
-            gh release list --limit 100 --json tagName,createdAt \
-              --jq 'map(select(.tagName | startswith("autoupcsv-"))) | sort_by(.createdAt) | reverse | .[1:] | .[].tagName'
-          )
-
-          deleted=0
-          for tag in "${tags_to_delete[@]}"; do
-            [[ -z "$tag" ]] && continue
-            gh release delete "$tag" --yes --cleanup-tag
-            deleted=$((deleted + 1))
-          done
-
-          echo "deleted_count=$deleted" >> "$GITHUB_OUTPUT"
-          echo "Deleted old releases: $deleted"
 
       - name: Summary
         shell: bash
