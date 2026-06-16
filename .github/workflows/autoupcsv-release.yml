@@ -154,13 +154,14 @@ jobs:
         id: cleanup
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.scan.outputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
 
           tags_to_delete="$(
             gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-              --jq 'map(select((.body // "") | contains("指纹验证: "))) | sort_by(.created_at) | reverse | .[1:] | .[].tag_name'
+              --jq 'map(select((.body // "") | contains("指纹验证: "))) | map(select(.tag_name != env.TAG)) | sort_by(.published_at) | reverse | .[].tag_name'
           )"
 
           deleted=0
